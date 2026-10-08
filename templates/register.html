@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Register</title>
+</head>
+<body>
+    <h2>Register</h2>
+    <form action="/register_post" method="POST">
+        <div>
+            <label>Username:</label>
+            <input type="text" name="username" required>
+        </div>
+        <div>
+            <label>Password:</label>
+            <input type="password" name="password" required>
+        </div>
+        <div>
+            <label>CAPTCHA Verification:</label>
+            <!-- Render Base64 Image injected via Tera context -->
+            <img src="data:image/png;base64,{{ captcha_img }}" alt="CAPTCHA">
+            <input type="text" name="captcha_answer" placeholder="Enter CAPTCHA" autocomplete="off" required>
+        </div>
+        <button type="submit">Submit</button>
+    </form>
+</body>
+</html>

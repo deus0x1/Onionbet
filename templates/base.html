@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OnionBet{% endblock title %}</title>
+    <style>
+        body { font-family: monospace; max-width: 800px; margin: 40px auto; padding: 20px; background: #111; color: #eee; }
+        nav { display: flex; gap: 15px; background: #222; padding: 12px 20px; border-radius: 5px; margin-bottom: 20px; align-items: center; border: 1px solid #333; }
+        nav a { color: #28a745; text-decoration: none; font-weight: bold; }
+        nav a:hover { text-decoration: underline; }
+        .nav-right { margin-left: auto; display: flex; gap: 15px; align-items: center; }
+        .btn-logout { background: none; border: none; color: #dc3545; font-family: inherit; font-weight: bold; cursor: pointer; font-size: 1em; padding: 0; }
+        .btn-logout:hover { text-decoration: underline; }
+    </style>
+    {% block head %}{% endblock head %}
+</head>
+<body>
+    <nav>
+        <a href="/">Home</a>
+        <div class="nav-right">
+            {% if user %}
+                <a href="/profile">Profile ({{ user }})</a>
+                <form action="/logout" method="POST" style="display:inline; margin:0;">
+                    <button type="submit" class="btn-logout">Logout</button>
+                </form>
+            {% else %}
+                <a href="/login">Login</a>
+                <a href="/register">Register</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <main>
+        {% block content %}{% endblock content %}
+    </main>
+</body>
+</html>

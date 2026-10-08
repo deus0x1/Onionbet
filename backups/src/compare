@@ -1,0 +1,181 @@
+ #[post("/make_payment/{bet_id}/{outcome}")]
+
+async fn make_payment_handler(
+    path: web::Path<(u64, u32)>,
+    request: web::Json<PaymentRequest>,
+    payment_addresses: web::Data<Mutex<Vec<PaymentAddress>>>,
+    client: web::Data<Client>,
+    identity: Option<Identity>,
+
+) -> impl Responder {
+    let (bet_id, outcome) = path.into_inner();
+
+    // 2. Validate that outcome is strictly 1 or 2
+
+    if outcome != 1 && outcome != 2 {
+        return HttpResponse::BadRequest().body("Outcome must be 1 or 2");
+    }
+
+    
+
+    let identity = match identity {
+        Some(identity) => identity,
+        None => {
+            return HttpResponse::Unauthorized()
+                .body("You must be logged in");
+        }
+    };
+
+    let user_id = match identity.id() {
+        Ok(id) => id,
+        Err(_) => {
+            return HttpResponse::Unauthorized()
+                .body("Invalid identity");
+        }
+    };
+
+
+    let all_address_strings: Vec<String> = addresses
+        .iter()
+        .map(|a| a.address.clone())
+        .collect();
+
+    let mut addresses = payment_addresses.lock().await;
+
+    let mut address = String::new();
+    match get_all_addresses(&client).await {
+        Ok(addresses) => {
+            let mut available_address = false;
+            for addr in addresses {
+                if !all_address_strings.contains(&addr.to_string()) {
+                    address = addr;
+                    available_address = true;
+                    break;
+                }
+            }
+            if !available_address {
+                if let Ok(new_address) = create_new_address(&client).await {
+                    address = new_address;
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to fetch addresses: {}", e);
+        }
+    }
+    
+    let balance = match get_address_balance(&client, &address).await {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("Failed to fetch balance for address {address}: {e}");
+            return HttpResponse::InternalServerError().body("Failed to check wallet balance");
+        }
+    };
+
+    let new_reservation = PaymentAddress {
+        address,
+        balance_before: balance,
+        user_id,
+        is_bet_bool: true,
+        bet_id,
+        outcome_id: outcome,
+        error_logged: false,
+    };
+
+    addresses.push(new_reservation.clone());        
+
+    HttpResponse::SeeOther()
+        .insert_header((header::LOCATION, "/user/orders"))
+        .finish()
+} 
+
+
+
+===============================================================================================================================================
+
+
+
+use tokio::sync::Mutex; // Ensure Tokio Mutex is imported
+use actix_web::http::header;
+
+#[post("/make_payment/{bet_id}/{outcome}")]
+async fn make_payment_handler(
+    path: web::Path<(u64, u32)>,
+    _request: web::Json<PaymentRequest>,
+    payment_addresses: web::Data<Mutex<Vec<PaymentAddress>>>,
+    client: web::Data<Client>,
+    identity: Option<Identity>,
+) -> impl Responder {
+    let (bet_id, outcome) = path.into_inner();
+
+    if outcome != 1 && outcome != 2 {
+        return HttpResponse::BadRequest().body("Outcome must be 1 or 2");
+    }
+    
+    let identity = match identity {
+        Some(identity) => identity,
+        None => return HttpResponse::Unauthorized().body("You must be logged in"),
+    };
+
+    let user_id = match identity.id() {
+        Ok(id) => id,
+        Err(_) => return HttpResponse::Unauthorized().body("Invalid identity"),
+    };
+
+    // 1. LOCK FIRST
+    let mut addresses = payment_addresses.lock().await;
+
+    // 2. READ FROM LOCKED GUARD
+    let all_address_strings: Vec<String> = addresses
+        .iter()
+        .map(|a| a.address.clone())
+        .collect();
+
+    // 3. FIND OR CREATE ADDRESS
+    let mut address = String::new();
+    if let Ok(fetched_addresses) = get_all_addresses(&client).await {
+        for addr in fetched_addresses {
+            if !all_address_strings.contains(&addr) {
+                address = addr;
+                break;
+            }
+        }
+        if address.is_empty() {
+            if let Ok(new_address) = create_new_address(&client).await {
+                address = new_address;
+            }
+        }
+    }
+
+    // 4. GUARD AGAINST EMPTY ADDRESSES
+    if address.is_empty() {
+        eprintln!("Error: Failed to fetch or generate a payment address.");
+        return HttpResponse::InternalServerError().body("Could not assign a payment address");
+    }
+    
+    // 5. FETCH BALANCE SAFELY
+    let balance = match get_address_balance(&client, &address).await {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("Failed to fetch balance for address {address}: {e}");
+            return HttpResponse::InternalServerError().body("Failed to check wallet balance");
+        }
+    };
+
+    let new_reservation = PaymentAddress {
+        address,
+        balance_before: balance,
+        user_id,
+        is_bet_bool: true,
+        bet_id,
+        outcome_id: outcome,
+        error_logged: false,
+    };
+    
+    // 6. SAVE (No .clone() needed since new_reservation isn't used again)
+    addresses.push(new_reservation);        
+
+    HttpResponse::SeeOther()
+        .insert_header((header::LOCATION, "/user/orders"))
+        .finish()
+}
