@@ -168,6 +168,27 @@ async fn make_payment_handler(
         Err(_) => return HttpResponse::BadRequest().body("Invalid user ID format"),
     };
 
+    let status: String = match sqlx::query_scalar::<_, String>(
+        "SELECT status FROM markets_bool WHERE id = ?"
+    )
+    .bind(bet_id)
+    .fetch_optional(pool.get_ref())
+    .await
+    {
+        Ok(Some(status)) => status,
+        Ok(None) => return HttpResponse::NotFound().body("Market not found"),
+        Err(e) => {
+            eprintln!("Database error fetching market status: {e}");
+            return HttpResponse::InternalServerError().finish();
+        }
+    };
+
+    if status != "OPEN" {
+        println!("Market:{bet_id} is closed, user trying to access it: {user_id_str}");
+        return HttpResponse::BadRequest().body("Market is closed for betting");
+    }
+
+
     let _guard = lock.lock().await;
 
     let used_addresses = match get_used_addresses(&pool).await {

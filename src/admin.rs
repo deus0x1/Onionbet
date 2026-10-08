@@ -98,6 +98,27 @@ pub async fn set_winner_bool(
 
     let (bet_id, winning_outcome) = path.into_inner();
 
+    let status: String = match sqlx::query_scalar::<_, String>(
+        "SELECT status FROM markets_bool WHERE id = ?"
+    )
+    .bind(bet_id)
+    .fetch_optional(pool.get_ref())
+    .await
+    {
+        Ok(Some(status)) => status,
+        Ok(None) => return HttpResponse::NotFound().body("Market not found"),
+        Err(e) => {
+            eprintln!("Database error fetching market status: {e}");
+            return HttpResponse::InternalServerError().finish();
+        }
+    };
+
+    if status == "OPEN" {
+        println!("Market is still open, close it if you want to process.");
+        return HttpResponse::BadRequest().body("Market still open.");
+    }
+
+
     let bets = match get_all_bets_for_market(bet_id, pool).await {
         Ok(bets) => bets,
         Err(e) => {
@@ -114,6 +135,15 @@ pub async fn set_winner_bool(
     }
 
     
+}
+
+
+#[post("/close_market/market_id")]
+pub async fn close_market(
+     path: web::Path<(u64)>,    
+) -> impl Responder {
+    let market_id = path.into_inner();
+
 }
 
 
